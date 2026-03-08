@@ -6,7 +6,7 @@ const { readUrl } = require("./reader");
 const { z } = require("zod");
 
 const PORT = process.env.MCP_PORT || process.env.PORT || 3001;
-const API_KEY = process.env.API_KEY;
+const API_KEY = process.env.API_KEY || 'secret-key';
 
 // Create the MCP server
 const mcpServer = new McpServer({
@@ -53,6 +53,9 @@ mcpServer.tool(
 // --- Express app for HTTP transport ---
 const app = express();
 
+// Body parsing — must be before routes
+app.use(express.json());
+
 // API key auth middleware
 function authMiddleware(req, res, next) {
   if (!API_KEY) return next();
@@ -91,9 +94,6 @@ app.post("/messages", authMiddleware, async (req, res) => {
   }
   await transport.handlePostMessage(req, res, req.body);
 });
-
-// Body parsing
-app.use(express.json());
 
 app.listen(PORT, () => {
   console.log(`Reader Mode MCP server running on http://localhost:${PORT}`);
