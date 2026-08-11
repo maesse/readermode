@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { htmlWithLinkPreference, markdownFromHtml, truncateWithMarker } = require("./output");
+const { htmlWithLinkPreference, markdownFromHtml, truncateWithMarker } = require("../src/output");
 
 test("markdown link handling is optional", () => {
   const html = '<p>Hello <a href="https://example.com/path">world</a>.</p>';

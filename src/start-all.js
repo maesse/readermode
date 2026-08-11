@@ -1,4 +1,5 @@
 const { spawn } = require("child_process");
+const path = require("path");
 const { resolveApiKey } = require("./auth");
 
 const keyInfo = resolveApiKey();
@@ -9,7 +10,7 @@ if (keyInfo.generated) {
 
 const env = { ...process.env, API_KEY: keyInfo.apiKey };
 const children = ["server.js", "mcp-server.js"].map((script) =>
-  spawn(process.execPath, [script], { env, stdio: "inherit" })
+  spawn(process.execPath, [path.join(__dirname, script)], { env, stdio: "inherit" })
 );
 let stopping = false;
 

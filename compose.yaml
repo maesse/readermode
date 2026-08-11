@@ -1,0 +1,20 @@
+services:
+  reader-mode:
+    image: ${READERMODE_IMAGE:-readermode:local}
+    build:
+      context: .
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${REST_PORT:-3000}:3000"
+      - "${MCP_PORT:-3001}:3001"
+    environment:
+      API_KEY: ${API_KEY:-}
+      MCP_RATE_LIMIT_PER_SECOND: ${MCP_RATE_LIMIT_PER_SECOND:-10}
+      API_RATE_LIMIT_PER_SECOND: ${API_RATE_LIMIT_PER_SECOND:-10}
+      MCP_MAX_OUTPUT_CHARACTERS: ${MCP_MAX_OUTPUT_CHARACTERS:-50000}
+      FETCH_TIMEOUT_MS: ${FETCH_TIMEOUT_MS:-15000}
+      MAX_DOWNLOAD_BYTES: ${MAX_DOWNLOAD_BYTES:-5242880}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
+    security_opt:
+      - no-new-privileges:true

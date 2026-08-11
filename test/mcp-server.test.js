@@ -3,7 +3,7 @@ const http = require("node:http");
 const test = require("node:test");
 const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
 const { StreamableHTTPClientTransport } = require("@modelcontextprotocol/sdk/client/streamableHttp.js");
-const { createApp } = require("./mcp-server");
+const { createApp } = require("../src/mcp-server");
 
 function listen(server) {
   return new Promise((resolve, reject) => {

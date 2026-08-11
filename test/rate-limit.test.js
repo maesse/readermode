@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createGlobalRateLimiter } = require("./rate-limit");
+const { createGlobalRateLimiter } = require("../src/rate-limit");
 
 function response() {
   return {

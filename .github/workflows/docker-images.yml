@@ -1,68 +1,124 @@
-name: Build and publish Docker images
+name: Test and publish container
 
 on:
+  pull_request:
   push:
-    branches: [ "main" ]
-    tags: [ "v*.*.*" ]
-  workflow_dispatch: {}
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 permissions:
   contents: read
-  packages: write
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_OWNER: ${{ github.repository_owner }}
+  IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  build-and-push:
-    name: Build and push images
+  test:
+    name: Test on Node.js 24
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - id: readermode
-            context: .
-            dockerfile: ./Dockerfile
-            image: readermode
-            build-args: |
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  container:
+    name: Build, smoke test, and publish
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image for smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: readermode:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test container health
+        shell: bash
+        run: |
+          docker run --detach --name readermode-smoke \
+            --env API_KEY=ci-test-key \
+            --health-interval=1s \
+            --health-start-period=1s \
+            readermode:ci
+
+          for attempt in {1..30}; do
+            status="$(docker inspect --format '{{.State.Health.Status}}' readermode-smoke)"
+            if [ "$status" = "healthy" ]; then
+              exit 0
+            fi
+            if [ "$status" = "unhealthy" ]; then
+              docker logs readermode-smoke
+              exit 1
+            fi
+            sleep 1
+          done
+
+          docker logs readermode-smoke
+          exit 1
+
+      - name: Remove smoke-test container
+        if: always()
+        run: docker rm --force readermode-smoke || true
+
       - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata (tags, labels)
+      - name: Extract image metadata
+        if: github.event_name != 'pull_request'
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ matrix.image }}
+          images: ${{ env.IMAGE }}
           tags: |
             type=ref,event=branch
-            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=sha
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push ${{ matrix.id }}
-        uses: docker/build-push-action@v5
+      - name: Publish image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v7
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
+          context: .
           push: true
-          provenance: false
-          sbom: false
-          build-args: ${{ matrix.build-args }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          provenance: mode=max
+          sbom: true

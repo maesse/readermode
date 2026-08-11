@@ -7,8 +7,7 @@ const { createAuthMiddleware, resolveApiKey } = require("./auth");
 const { renderArticle, truncateWithMarker } = require("./output");
 const { createGlobalRateLimiter } = require("./rate-limit");
 const { readUrl } = require("./reader");
-
-const SERVER_VERSION = "1.1.0";
+const { version: SERVER_VERSION } = require("../package.json");
 
 function positiveInteger(value, fallback, name) {
   const parsed = Number(value ?? fallback);

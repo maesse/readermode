@@ -1,12 +1,12 @@
 {
   "name": "readermode",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Reader-mode REST API and MCP server powered by Mozilla Readability",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node server.js",
-    "start:mcp": "node mcp-server.js",
-    "start:all": "node start-all.js",
+    "start": "node src/server.js",
+    "start:mcp": "node src/mcp-server.js",
+    "start:all": "node src/start-all.js",
     "test": "node --test"
   },
   "keywords": ["mcp", "readability", "reader-mode"],

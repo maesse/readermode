@@ -2,6 +2,7 @@ const express = require("express");
 const { createAuthMiddleware, resolveApiKey } = require("./auth");
 const { createGlobalRateLimiter } = require("./rate-limit");
 const { readUrl } = require("./reader");
+const { version: SERVER_VERSION } = require("../package.json");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,6 +12,10 @@ const RATE_LIMIT = Number(process.env.API_RATE_LIMIT_PER_SECOND || 10);
 app.use(express.json());
 app.use(createGlobalRateLimiter({ limit: RATE_LIMIT }));
 app.use("/api", createAuthMiddleware(API_KEY));
+
+app.get("/healthz", (_req, res) => {
+  res.json({ status: "ok", name: "reader-mode-api", version: SERVER_VERSION });
+});
 
 app.get("/api/read", async (req, res) => {
   const { url } = req.query;
