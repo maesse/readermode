@@ -1,22 +1,23 @@
 {
   "name": "readermode",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.1.0",
+  "description": "Reader-mode REST API and MCP server powered by Mozilla Readability",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "start:mcp": "node mcp-server.js",
-    "start:all": "node server.js & node mcp-server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start:all": "node start-all.js",
+    "test": "node --test"
   },
-  "keywords": [],
+  "keywords": ["mcp", "readability", "reader-mode"],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@mozilla/readability": "^0.6.0",
     "express": "^5.2.1",
-    "jsdom": "^28.1.0"
+    "jsdom": "^30.0.1",
+    "zod": "^4.4.3"
   }
 }

@@ -139,29 +139,77 @@ function cleanText(text) {
  * @param {string} url
  * @returns {Promise<object>}
  */
-async function readUrl(url) {
-  // Validate
-  new URL(url); // throws on invalid
+async function readUrl(url, options = {}) {
+  const parsedUrl = new URL(url);
+  if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+    throw new Error("Invalid URL: only HTTP and HTTPS URLs are supported");
+  }
 
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    },
-  });
+  const timeoutMs = options.timeoutMs ?? Number(process.env.FETCH_TIMEOUT_MS || 15000);
+  const maxDownloadBytes = options.maxDownloadBytes ?? Number(process.env.MAX_DOWNLOAD_BYTES || 5 * 1024 * 1024);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response;
+  try {
+    response = await fetch(parsedUrl, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error.name === "AbortError") {
+      throw new Error(`Fetching the URL timed out after ${timeoutMs} ms`);
+    }
+    throw error;
+  }
 
   if (!response.ok) {
+    clearTimeout(timeout);
     throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
   }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxDownloadBytes) {
+    clearTimeout(timeout);
+    await response.body?.cancel();
+    throw new Error(`Page exceeds the ${maxDownloadBytes} byte download limit`);
+  }
+
+  const chunks = [];
+  let downloadedBytes = 0;
+  const reader = response.body.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      downloadedBytes += value.byteLength;
+      if (downloadedBytes > maxDownloadBytes) {
+        await reader.cancel();
+        throw new Error(`Page exceeds the ${maxDownloadBytes} byte download limit`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(`Fetching the URL timed out after ${timeoutMs} ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const buffer = Buffer.concat(chunks, downloadedBytes);
   const html = decodeHTML(buffer, response.headers.get("content-type"));
   const dom = new JSDOM(html, { url });
 
   removePopupsAndConsent(dom.window.document);
 
-  const reader = new Readability(dom.window.document);
-  const article = reader.parse();
+  const readability = new Readability(dom.window.document);
+  const article = readability.parse();
 
   if (!article) {
     throw new Error("Could not extract readable content from the page");
@@ -170,7 +218,7 @@ async function readUrl(url) {
   const cleanedContent = cleanHTML(article.content);
   const cleanedText = cleanText(article.textContent);
 
-  return {
+  const result = {
     title: article.title,
     byline: article.byline,
     content: cleanedContent,
@@ -179,6 +227,9 @@ async function readUrl(url) {
     excerpt: article.excerpt,
     siteName: article.siteName,
   };
+
+  if (options.includeRawHtml) result.rawHtml = html;
+  return result;
 }
 
-module.exports = { readUrl };
+module.exports = { cleanText, readUrl };

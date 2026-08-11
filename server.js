@@ -1,26 +1,16 @@
 const express = require("express");
+const { createAuthMiddleware, resolveApiKey } = require("./auth");
+const { createGlobalRateLimiter } = require("./rate-limit");
 const { readUrl } = require("./reader");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY;
+const { apiKey: API_KEY, generated: GENERATED_API_KEY } = resolveApiKey();
+const RATE_LIMIT = Number(process.env.API_RATE_LIMIT_PER_SECOND || 10);
 
 app.use(express.json());
-
-// API key authentication middleware
-app.use("/api", (req, res, next) => {
-  if (!API_KEY) {
-    // No key configured — allow all requests (dev mode)
-    return next();
-  }
-  const provided =
-    req.headers["x-api-key"] ||
-    req.headers["authorization"]?.replace(/^Bearer\s+/i, "");
-  if (provided !== API_KEY) {
-    return res.status(401).json({ error: "Unauthorized: invalid or missing API key" });
-  }
-  next();
-});
+app.use(createGlobalRateLimiter({ limit: RATE_LIMIT }));
+app.use("/api", createAuthMiddleware(API_KEY));
 
 app.get("/api/read", async (req, res) => {
   const { url } = req.query;
@@ -49,9 +39,8 @@ app.get("/api/read", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Reader Mode API running on http://localhost:${PORT}`);
-  if (API_KEY) {
-    console.log("API key authentication enabled");
-  } else {
-    console.log("WARNING: No API_KEY set — running without authentication");
-  }
+  if (GENERATED_API_KEY) {
+    console.log("No API_KEY was provided. Generated API key for this launch:");
+    console.log(API_KEY);
+  } else console.log("API key authentication enabled");
 });
